@@ -1,0 +1,53 @@
+# TODO : Look why it doesn't work https://github.com/Erlemar/pytorch_tempest/blob/master/conf/optimizer/adamw.yaml
+_target_: models.model.Model
+num_queries: ${default_hp.num_queries}
+num_decoder_stack: ${default_hp.num_decoder_stack}
+num_encoder_stack: ${default_hp.num_encoder_stack}
+hidden_dim: ${default_hp.hidden_dim} 
+multiscale: ${default_hp.multiscale}
+masks: ${default_hp.masks}
+num_classes: ${default_hp.num_classes}
+
+backbone:
+    _target_: models.backbone.build_backbone
+    lr_backbone: 1e-5
+    position_embedding: 'sine'
+    hidden_dim: ${default_hp.hidden_dim}
+    multiscale: ${default_hp.multiscale}
+    masks: False
+    backbone: 'resnet50'
+    dilation: False
+
+transformer:
+    _target_: models.transformer.build_transformer
+    hidden_dim: ${default_hp.hidden_dim}
+    nheads: ${default_hp.nheads}
+    num_encoder_layers: ${default_hp.num_encoder_stack}
+    num_decoder_layers: ${default_hp.num_decoder_stack}
+    dim_feedforward: ${default_hp.dim_feedforward}
+    dropout: ${default_hp.dropout}
+    activation: "relu"                          
+    return_intermediate_dec: False
+    num_feature_levels: 4 
+    dec_n_points: 4  
+    enc_n_points: 4  
+    two_stage: False 
+    two_stage_num_proposals: 300 
+    decoder_self_cross: True
+    sigmoid_attn: False
+    extra_track_attn: False
+
+matcher:
+    _target_: models.matcher.build_matcher
+    set_cost_class:  2
+    set_cost_bbox: 5
+    set_cost_giou:  1
+
+weights:
+    _target_: models.builders.build_weights
+    loss_ce: 2
+    loss_bbox: 5
+    loss_giou: 1
+    loss_mask: 1
+    loss_similarity: 0.001
+    loss_dice: 1

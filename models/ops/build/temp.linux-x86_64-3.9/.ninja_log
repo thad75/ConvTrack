@@ -1,0 +1,4 @@
+# ninja log v5
+4	5353	1663338431811629705	/gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/models/ops/build/temp.linux-x86_64-3.9/gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/models/ops/src/cpu/ms_deform_attn_cpu.o	8d417de3a067638a
+4	15969	1663338442423391085	/gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/models/ops/build/temp.linux-x86_64-3.9/gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/models/ops/src/cuda/ms_deform_attn_cuda.o	1651185c73fd63c8
+5	19711	1663338446167884578	/gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/models/ops/build/temp.linux-x86_64-3.9/gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/models/ops/src/vision.o	53bc2bb449e04535

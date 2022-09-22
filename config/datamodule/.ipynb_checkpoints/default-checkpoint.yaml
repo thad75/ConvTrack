@@ -1,0 +1,26 @@
+_target_: dataloader.MOT2020Module
+batch_size: 5
+folder: "./MOT20/"
+input_h: 480
+input_w: 960 
+image_blur_aug : True
+flip : 0
+not_max_crop : True
+not_rand_crop : True
+shift: 0
+scale : 0 
+rotate : 0
+aug_rot : 0
+same_aug_pre : True
+no_color_aug : True
+max_frame_dist: 4
+down_ratio : 4
+pre_hm : True
+num_classes : 1
+hm_disturb : 0.05
+lost_disturb : 0.4
+fp_disturb : 0.1
+
+blur_aug: 
+    _target_: util.image.GaussianBlur
+    kernel_size: 11

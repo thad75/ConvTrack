@@ -1,0 +1,145 @@
+CONFIG                                                                          
+├── datamodule                                                                  
+│   └── _target_: dataloader.MOT2020Module                                      
+│       batch_size: 5                                                           
+│       folder: ./MOT20/                                                        
+│       input_h: 480                                                            
+│       input_w: 960                                                            
+│       image_blur_aug: true                                                    
+│       flip: 0                                                                 
+│       not_max_crop: true                                                      
+│       not_rand_crop: true                                                     
+│       shift: 0                                                                
+│       scale: 0                                                                
+│       rotate: 0                                                               
+│       aug_rot: 0                                                              
+│       same_aug_pre: true                                                      
+│       no_color_aug: true                                                      
+│       max_frame_dist: 4                                                       
+│       down_ratio: 4                                                           
+│       pre_hm: true                                                            
+│       num_classes: 1                                                          
+│       hm_disturb: 0.05                                                        
+│       lost_disturb: 0.4                                                       
+│       fp_disturb: 0.1                                                         
+│       blur_aug:                                                               
+│         _target_: util.image.GaussianBlur                                     
+│         kernel_size: 11                                                       
+│                                                                               
+├── model                                                                       
+│   └── _target_: models.model.Model                                            
+│       num_queries: 300                                                        
+│       num_decoder_stack: 6                                                    
+│       num_encoder_stack: 6                                                    
+│       hidden_dim: 256                                                         
+│       multiscale: true                                                        
+│       masks: false                                                            
+│       num_classes: 91                                                         
+│       backbone:                                                               
+│         _target_: models.backbone.build_backbone                              
+│         lr_backbone: 1.0e-05                                                  
+│         position_embedding: sine                                              
+│         hidden_dim: 256                                                       
+│         multiscale: true                                                      
+│         masks: false                                                          
+│         backbone: resnet50                                                    
+│         dilation: false                                                       
+│       transformer:                                                            
+│         _target_: models.transformer.build_transformer                        
+│         hidden_dim: 256                                                       
+│         nheads: 8                                                             
+│         num_encoder_layers: 6                                                 
+│         num_decoder_layers: 6                                                 
+│         dim_feedforward: 2048                                                 
+│         dropout: 0.1                                                          
+│         activation: relu                                                      
+│         return_intermediate_dec: false                                        
+│         num_feature_levels: 4                                                 
+│         dec_n_points: 4                                                       
+│         enc_n_points: 4                                                       
+│         two_stage: false                                                      
+│         two_stage_num_proposals: 300                                          
+│         decoder_self_cross: true                                              
+│         sigmoid_attn: false                                                   
+│         extra_track_attn: false                                               
+│       matcher:                                                                
+│         _target_: models.matcher.build_matcher                                
+│         set_cost_class: 2                                                     
+│         set_cost_bbox: 5                                                      
+│         set_cost_giou: 1                                                      
+│       weights:                                                                
+│         _target_: models.builders.build_weights                               
+│         loss_ce: 2                                                            
+│         loss_bbox: 5                                                          
+│         loss_giou: 1                                                          
+│         loss_mask: 1                                                          
+│         loss_similarity: 0.001                                                
+│         loss_dice: 1                                                          
+│                                                                               
+├── callbacks                                                                   
+│   └── model_checkpoint:                                                       
+│         _target_: pytorch_lightning.callbacks.ModelCheckpoint                 
+│         monitor: loss/val                                                     
+│         mode: min                                                             
+│         save_top_k: 1                                                         
+│         save_last: true                                                       
+│         verbose: false                                                        
+│         dirpath: checkpoints/                                                 
+│         filename: epoch_{epoch:03d}                                           
+│         auto_insert_metric_name: false                                        
+│       learning_rate_monitor:                                                  
+│         _target_: pytorch_lightning.callbacks.LearningRateMonitor             
+│         logging_interval: epoch                                               
+│                                                                               
+├── logger                                                                      
+│   └── tensorboard:                                                            
+│         _target_: pytorch_lightning.loggers.tensorboard.TensorBoardLogger     
+│         save_dir: tensorboard/                                                
+│         name: null                                                            
+│         version: Query Random                                                 
+│         log_graph: false                                                      
+│         default_hp_metric: true                                               
+│         prefix: ''                                                            
+│                                                                               
+├── trainer                                                                     
+│   └── _target_: pytorch_lightning.Trainer                                     
+│       gpus: -1                                                                
+│       min_epochs: 1                                                           
+│       max_epochs: 12                                                          
+│       resume_from_checkpoint: null                                            
+│       precision: 16                                                           
+│       gradient_clip_val: 0.1                                                  
+│       fast_dev_run: true                                                      
+│       default_root_dir: /gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/checkp
+│         Random                                                                
+│       accelerator: ddp                                                        
+│       sync_batchnorm: true                                                    
+│                                                                               
+├── original_work_dir                                                           
+│   └── /gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS                         
+├── data_dir                                                                    
+│   └── /gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/data/                   
+├── print_config                                                                
+│   └── True                                                                    
+├── ignore_warnings                                                             
+│   └── True                                                                    
+├── train                                                                       
+│   └── True                                                                    
+├── test                                                                        
+│   └── True                                                                    
+├── seed                                                                        
+│   └── None                                                                    
+├── name                                                                        
+│   └── Query Random                                                            
+└── default_hp                                                                  
+    └── num_queries: 300                                                        
+        num_classes: 91                                                         
+        num_decoder_stack: 6                                                    
+        num_encoder_stack: 6                                                    
+        hidden_dim: 256                                                         
+        multiscale: true                                                        
+        masks: false                                                            
+        dim_feedforward: 2048                                                   
+        nheads: 8                                                               
+        dropout: 0.1                                                            
+                                                                                

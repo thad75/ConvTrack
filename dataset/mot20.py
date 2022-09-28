@@ -41,6 +41,7 @@ class MOT2020(Dataset):
         dtype=np.float32,
     )
     cat_ids = {1: 1}
+    num_joints = 17
     def __init__(self,folder, 
                     split = 'train', 
                     cache_mode = False, 
@@ -139,8 +140,10 @@ class MOT2020(Dataset):
         self.lost_disturb = lost_disturb
         self.fp_disturb = fp_disturb
         print('MOT 2020 is initalized')
-
-
+        # TODO : Change to class attribtues
+        self.heads = ["hm", "reg", "wh", "center_offset", "tracking"]
+        self.dense_reg = 1
+        self.debug = 0
     def __getitem__(self,idx):
         """
         Output:
@@ -187,6 +190,7 @@ class MOT2020(Dataset):
         pre_image,pre_anns,frame_dist,pre_img_id,pre_pad_image = self._load_pre_data(img_info["video_id"],
                                                                                     img_info["frame_id"],
                                                                                     img_info["sensor_id"] if "sensor_id" in img_info else 1)
+
         # All the augmentation on the pref image
         if self.image_blur_aug and img_blurred and self.split == "train":
                 # print("blur image")
@@ -216,8 +220,13 @@ class MOT2020(Dataset):
             pre_image, trans_input_pre, padding_mask=pre_pad_image
         )
         # pre_hm is of standard input shape, todo pre_cts is in the output image plane
+        # Was added
+        
+        init_bbox= self._get_pre_bbox_for_roi(pre_anns, im_size = pre_image.shape)
+        ret['init_bbox'] = np.array(init_bbox)
+        
         pre_hm, pre_cts, pre_track_ids = self._get_pre_dets(
-            pre_anns, trans_input_pre, trans_output_pre
+            pre_anns, trans_input_pre, trans_output_pre, im_size = pre_image.shape
         )
         ret["pre_img"] = pre_img
         ret["pre_pad_mask"] = pre_padding_mask.astype(np.bool)
@@ -230,7 +239,7 @@ class MOT2020(Dataset):
         for k in range(num_objs):
             ann = anns[k]
             cls_id = int(self.cat_ids[ann["category_id"]])
-            if cls_id > self.opt.num_classes or cls_id <= -999:
+            if cls_id > self.num_classes or cls_id <= -999:
                 continue
             # get ground truth bbox in the output image plane,
             # bbox_amodal do not clip by ouput image size, bbox is clipped, todo !!!warning!!! the function performs cxcy2xyxy
@@ -241,31 +250,19 @@ class MOT2020(Dataset):
                 continue
 
             # todo warning track_ids are ids at t-1
-            self._add_instance(
-                ret,
-                gt_det,
-                k,
-                cls_id,
-                bbox,
-                bbox_amodal,
-                ann,
-                trans_output,
-                aug_s,
-                pre_cts,
-                pre_track_ids,
-            )
+            self._add_instance(ret,gt_det,k,cls_id,bbox,bbox_amodal,ann,trans_output,aug_s,pre_cts,pre_track_ids)
 
-        if self.opt.debug > 0:
-            gt_det = self._format_gt_det(gt_det)
-            meta = {
-                "c": c,
-                "s": s,
-                "gt_det": gt_det,
-                "img_id": img_info["id"],
-                "img_path": img_path,
-                "flipped": flipped,
-            }
-            ret["meta"] = meta
+        # if self.debug > 0:
+        gt_det = self._format_gt_det(gt_det)
+        meta = {
+            "c": c,
+            "s": s,
+            "gt_det": gt_det,
+            "img_id": img_info["id"],
+            "img_path": img_path,
+            "flipped": flipped,
+        }
+        ret["meta"] = meta
 
         ret["c"] = c
         ret["s"] = np.asarray(s, dtype=np.float32)
@@ -287,7 +284,28 @@ class MOT2020(Dataset):
             [box[0], box[1], box[0] + box[2], box[1] + box[3]], dtype=np.float32
         )
         return   bbox
+    def _get_bbox_output(self, bbox, trans_output, height, width):
+        bbox = self._coco_box_to_bbox(bbox).copy()
 
+        rect = np.array(
+            [
+                [bbox[0], bbox[1]],
+                [bbox[0], bbox[3]],
+                [bbox[2], bbox[3]],
+                [bbox[2], bbox[1]],
+            ],
+            dtype=np.float32,
+        )
+        for t in range(4):
+            rect[t] = affine_transform(rect[t], trans_output)
+        bbox[:2] = rect[:, 0].min(), rect[:, 1].min()
+        bbox[2:] = rect[:, 0].max(), rect[:, 1].max()
+
+        bbox_amodal = copy.deepcopy(bbox)
+        bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, self.output_w - 1)
+        bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, self.output_h - 1)
+        return bbox, bbox_amodal
+    
     def _get_border(self, border, size):
         """
         It returns the largest power of 2 that is less than or equal to the border size
@@ -462,6 +480,8 @@ class MOT2020(Dataset):
         ret["mask"] = np.zeros((max_objs), dtype=np.float32)
         # xyh #
         ret["boxes"] = np.zeros((max_objs, 4), dtype=np.float32)
+        # Was Added
+        # ret['init_boxes'] = np.zeros((max_objs, 4), dtype=np.float32)
         ret["boxes_mask"] = np.zeros((max_objs), dtype=np.float32)
 
         ret["center_offset"] = np.zeros((max_objs, 2), dtype=np.float32)
@@ -494,7 +514,7 @@ class MOT2020(Dataset):
         if "hm_hp" in self.heads:
             num_joints = self.num_joints
             ret["hm_hp"] = np.zeros(
-                (num_joints, self.opt.output_h, self.opt.output_w), dtype=np.float32
+                (num_joints, self.output_h, self.output_w), dtype=np.float32
             )
             ret["hm_hp_mask"] = np.zeros((max_objs * num_joints), dtype=np.float32)
             ret["hp_offset"] = np.zeros((max_objs * num_joints, 2), dtype=np.float32)
@@ -504,12 +524,21 @@ class MOT2020(Dataset):
             )
             ret["joint"] = np.zeros((max_objs * num_joints), dtype=np.int64)
 
-        if "rot" in self.opt.heads:
+        if "rot" in self.heads:
             ret["rotbin"] = np.zeros((max_objs, 2), dtype=np.int64)
             ret["rotres"] = np.zeros((max_objs, 2), dtype=np.float32)
             ret["rot_mask"] = np.zeros((max_objs), dtype=np.float32)
             gt_det.update({"rot": []})
-    def _get_pre_dets(self, anns, trans_input, trans_output):
+            
+    def _get_pre_bbox_for_roi(self, anns, im_size= None):
+        # for ann in anns:
+            h,w,c = im_size
+            bbox = torch.stack([torch.Tensor(self._coco_box_to_bbox(ann["bbox"])) for ann in anns])
+            bbox[:,[0,2]] = bbox[:,[0,2]]/w
+            bbox[:,[1,3]] = bbox[:,[1,3]]/h
+            return bbox
+        
+    def _get_pre_dets(self, anns, trans_input, trans_output, im_size=None):
         hm_h, hm_w = self.input_h, self.input_w
         down_ratio = self.down_ratio
         trans = trans_input
@@ -517,6 +546,7 @@ class MOT2020(Dataset):
         pre_hm = np.zeros((1, hm_h, hm_w), dtype=np.float32) if reutrn_hm else None
         pre_cts, track_ids = [], []
         for ann in anns:
+            # print(im_size)
             cls_id = int(self.cat_ids[ann["category_id"]])
             if (
                 cls_id > self.num_classes
@@ -525,6 +555,7 @@ class MOT2020(Dataset):
             ):
                 continue
             bbox = self._coco_box_to_bbox(ann["bbox"])
+            # print(bbox)
             # from original input image size to standard input size using draw_umich_gaussian
             bbox[:2] = affine_transform(bbox[:2], trans)
             bbox[2:] = affine_transform(bbox[2:], trans)
@@ -679,22 +710,10 @@ class MOT2020(Dataset):
         return gt_det            
             
             
-    def _add_instance(
-        self,
-        ret,
-        gt_det,
-        k,
-        cls_id,
-        bbox,
-        bbox_amodal,
-        ann,
-        trans_output,
-        aug_s,
-        pre_cts=None,
-        pre_track_ids=None,
-    ):
+    def _add_instance(self,ret,gt_det,k,cls_id,bbox,bbox_amodal,ann,trans_output,aug_s,pre_cts=None,pre_track_ids=None,):
 
         # box is in the output image plane, add it to gt heatmap
+        
         h, w = bbox_amodal[3] - bbox_amodal[1], bbox_amodal[2] - bbox_amodal[0]
         h_clip, w_clip = bbox[3] - bbox[1], bbox[2] - bbox[0]
         if h_clip <= 0 or w_clip <= 0:
@@ -718,7 +737,7 @@ class MOT2020(Dataset):
             ret["wh_mask"][k] = 1
         # 'ind' of shape [num_objects],
         # indicating the position of the object = y*W_output + x in a heatmap of shape [out_h, out_w] #todo warning CT_INT
-        ret["ind"][k] = ct_int[1] * self.opt.output_w + ct_int[0]
+        ret["ind"][k] = ct_int[1] * self.output_w + ct_int[0]
         # the .xxx part of the kpts
         ret["reg"][k] = ct - ct_int
         ret["reg_mask"][k] = 1
@@ -756,14 +775,14 @@ class MOT2020(Dataset):
         )
 
         # cx, cy, w, h / output size
-        ret["boxes"][k][0::2] /= self.opt.output_w
-        ret["boxes"][k][1::2] /= self.opt.output_h
+        ret["boxes"][k][0::2] /= self.output_w
+        ret["boxes"][k][1::2] /= self.output_h
         ret["boxes_mask"][k] = 1
         gt_det["scores"].append(1)
         gt_det["clses"].append(cls_id - 1)
         gt_det["cts"].append(ct)
 
-        if "tracking" in self.opt.heads:
+        if "tracking" in self.heads:
             # if 'tracking' we produce ground-truth offset heatmap
             # if curr track id exists in pre track ids
             if ann["track_id"] in pre_track_ids:

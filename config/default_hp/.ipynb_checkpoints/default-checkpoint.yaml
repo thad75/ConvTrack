@@ -1,10 +1,10 @@
 num_queries: 300
 num_classes: 91
-num_decoder_stack: 6
-num_encoder_stack: 6
+num_decoder_stack: 3
+num_encoder_stack: 3
 hidden_dim: 256 
 multiscale: True
 masks: False
-dim_feedforward : 2048
+dim_feedforward : 1024
 nheads : 8
 dropout : 0.1

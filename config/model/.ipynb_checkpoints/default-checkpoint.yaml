@@ -27,11 +27,11 @@ transformer:
     dim_feedforward: ${default_hp.dim_feedforward}
     dropout: ${default_hp.dropout}
     activation: "relu"                          
-    return_intermediate_dec: False
+    return_intermediate_dec: True
     num_feature_levels: 4 
-    dec_n_points: 4  
-    enc_n_points: 4  
-    two_stage: False 
+    dec_n_points: 4
+    enc_n_points: 4
+    two_stage: False
     two_stage_num_proposals: 300 
     decoder_self_cross: True
     sigmoid_attn: False
@@ -51,3 +51,20 @@ weights:
     loss_mask: 1
     loss_similarity: 0.001
     loss_dice: 1
+    
+tracker:
+    _target_: models.tracker.build_tracker
+    score_thresh: 0.7
+    filter_score_thresh: 0.6
+    miss_tolerance: 5
+    
+memory_bank:
+    _target_: models.memory_bank.build_memory_bank
+    dim_in:  ${default_hp.hidden_dim}
+    hidden_dim: ${default_hp.hidden_dim}
+    dim_out: ${default_hp.hidden_dim}
+    memory_bank_score_thresh: 0
+    memory_bank_len: 4
+    save_period: 3
+    memory_bank_with_self_attn: False
+    

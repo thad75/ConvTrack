@@ -1,5 +1,5 @@
 _target_: dataloader.MOT2020Module
-batch_size: 5
+batch_size: 2
 folder: "./MOT20/"
 input_h: 480
 input_w: 960 

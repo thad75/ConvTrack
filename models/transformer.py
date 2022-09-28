@@ -27,7 +27,7 @@ class DeformableTransformer(nn.Module):
                 num_feature_levels=4, 
                 dec_n_points=4,  
                 enc_n_points=4,     
-                two_stage=False, 
+                two_stage=True, 
                 two_stage_num_proposals=300, 
                 decoder_self_cross=True, 
                 sigmoid_attn=False,
@@ -41,7 +41,7 @@ class DeformableTransformer(nn.Module):
         self.two_stage = two_stage
         self.two_stage_num_proposals = two_stage_num_proposals
 
-        encoder_layer = DeformableTransformerEncoderLayer(d_model, 
+        encoder_layer = DeformableTransformerEncoderLayer(d_model*2, 
                                                         dim_feedforward,
                                                         dropout,
                                                         activation,
@@ -51,7 +51,7 @@ class DeformableTransformer(nn.Module):
                                                         sigmoid_attn=sigmoid_attn)
         self.encoder = DeformableTransformerEncoder(encoder_layer, num_encoder_layers)
 
-        decoder_layer = DeformableTransformerDecoderLayer(d_model, 
+        decoder_layer = DeformableTransformerDecoderLayer(d_model*2, 
                                                         dim_feedforward,
                                                         dropout, 
                                                         activation,
@@ -63,8 +63,9 @@ class DeformableTransformer(nn.Module):
                                                         extra_track_attn=extra_track_attn)
         self.decoder = DeformableTransformerDecoder(decoder_layer, num_decoder_layers, return_intermediate_dec)
 
-        self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, d_model))
+        self.level_embed = nn.Parameter(torch.Tensor(num_feature_levels, 2*d_model))
 
+        
         if two_stage:
             self.enc_output = nn.Linear(d_model, d_model)
             self.enc_output_norm = nn.LayerNorm(d_model)
@@ -134,6 +135,7 @@ class DeformableTransformer(nn.Module):
         return output_memory, output_proposals
 
     def get_valid_ratio(self, mask):
+        print('Mask',mask.shape)
         _, H, W = mask.shape
         valid_H = torch.sum(~mask[:, :, 0], 1)
         valid_W = torch.sum(~mask[:, 0, :], 1)
@@ -142,7 +144,7 @@ class DeformableTransformer(nn.Module):
         valid_ratio = torch.stack([valid_ratio_w, valid_ratio_h], -1)
         return valid_ratio
 
-    def forward(self, srcs, masks, pos_embeds, query_embed=None, ref_pts=None):
+    def forward(self, srcs, masks, pos_embeds, query_embed=None, ref_pts=None, roi_features = None):
         assert self.two_stage or query_embed is not None
 
         # prepare input for encoder
@@ -152,6 +154,7 @@ class DeformableTransformer(nn.Module):
         spatial_shapes = []
         for lvl, (src, mask, pos_embed) in enumerate(zip(srcs, masks, pos_embeds)):
             bs, c, h, w = src.shape
+            print(pos_embed.shape, mask.shape)
             spatial_shape = (h, w)
             spatial_shapes.append(spatial_shape)
             src = src.flatten(2).transpose(1, 2)
@@ -169,26 +172,36 @@ class DeformableTransformer(nn.Module):
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
 
         # encoder
-        memory = self.encoder(src_flatten, spatial_shapes, level_start_index, valid_ratios, lvl_pos_embed_flatten, mask_flatten)
+        memory = self.encoder(src_flatten, 
+                              spatial_shapes, 
+                              level_start_index, 
+                              valid_ratios, 
+                              lvl_pos_embed_flatten, 
+                              mask_flatten)
         # prepare input for decoder
         bs, _, c = memory.shape
+        print(memory.shape,'shape of memory')
         if self.two_stage:
             output_memory, output_proposals = self.gen_encoder_output_proposals(memory, mask_flatten, spatial_shapes)
-
             # hack implementation for two-stage Deformable DETR
-            enc_outputs_class = self.decoder.class_embed[self.decoder.num_layers](output_memory)
-            enc_outputs_coord_unact = self.decoder.bbox_embed[self.decoder.num_layers](output_memory) + output_proposals
+            print(output_memory.shape, self.decoder.class_embed,self.decoder.num_layers)
+            enc_outputs_class = self.decoder.class_embed[-1](output_memory)
+            enc_outputs_coord_unact = self.decoder.bbox_embed[-1](output_memory) + output_proposals
+
 
             topk = self.two_stage_num_proposals
             topk_proposals = torch.topk(enc_outputs_class[..., 0], topk, dim=1)[1]
             topk_coords_unact = torch.gather(enc_outputs_coord_unact, 1, topk_proposals.unsqueeze(-1).repeat(1, 1, 4))
             topk_coords_unact = topk_coords_unact.detach()
-            reference_points = topk_coords_unact.sigmoid()
+            reference_points = topk_coords_unact.sigmoid() # refpmoitns embed
             init_reference_out = reference_points
             pos_trans_out = self.pos_trans_norm(self.pos_trans(self.get_proposal_pos_embed(topk_coords_unact)))
+            print('Pos_Trans', pos_trans_out.shape)
             query_embed, tgt = torch.split(pos_trans_out, c, dim=2)
         else:
-            query_embed, tgt = torch.split(query_embed, c, dim=1)
+            print(query_embed.shape)
+            query_embed,tgt = torch.split(query_embed, c, dim=1)
+            print(query_embed[0].shape)
             query_embed = query_embed.unsqueeze(0).expand(bs, -1, -1)
             tgt = tgt.unsqueeze(0).expand(bs, -1, -1)
             
@@ -198,6 +211,7 @@ class DeformableTransformer(nn.Module):
                 reference_points = ref_pts.unsqueeze(0).repeat(bs, 1, 1).sigmoid()
             init_reference_out = reference_points
         # decoder
+        # TODO :Why is Hs of len 0 ?
         hs, inter_references = self.decoder(tgt, 
                                             reference_points, 
                                             memory,
@@ -205,7 +219,7 @@ class DeformableTransformer(nn.Module):
                                             level_start_index, 
                                             valid_ratios, 
                                             query_embed, 
-                                            mask_flatten)
+                                            mask_flatten, roi_features= roi_features)
 
         inter_references_out = inter_references
 

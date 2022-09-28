@@ -16,8 +16,12 @@ class DeformableTransformerDecoder(nn.Module):
         self.class_embed = None
 
     def forward(self, tgt, reference_points, src, src_spatial_shapes, src_level_start_index, src_valid_ratios,
-                query_pos=None, src_padding_mask=None):
+                query_pos=None, src_padding_mask=None, roi_features = None):
         output = tgt
+        if roi_features is not None:
+            print('Shapes of TAMER(',output.shape, roi_features.shape)
+            output = output + roi_features
+        print('tgt shape(', tgt.shape, roi_features.shape)
 
         intermediate = []
         intermediate_reference_points = []
@@ -50,7 +54,10 @@ class DeformableTransformerDecoder(nn.Module):
         if self.return_intermediate:
             return torch.stack(intermediate), torch.stack(intermediate_reference_points)
 
-        return output, reference_points
+        return  [
+            [itm_out.transpose(0, 1) for itm_out in intermediate],
+            [itm_refpoint.transpose(0, 1) for itm_refpoint in intermediate_reference_points]
+        ]    
 
 
 

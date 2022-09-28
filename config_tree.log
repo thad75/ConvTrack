@@ -1,7 +1,7 @@
 CONFIG                                                                          
 ├── datamodule                                                                  
 │   └── _target_: dataloader.MOT2020Module                                      
-│       batch_size: 5                                                           
+│       batch_size: 2                                                           
 │       folder: ./MOT20/                                                        
 │       input_h: 480                                                            
 │       input_w: 960                                                            
@@ -29,8 +29,8 @@ CONFIG
 ├── model                                                                       
 │   └── _target_: models.model.Model                                            
 │       num_queries: 300                                                        
-│       num_decoder_stack: 6                                                    
-│       num_encoder_stack: 6                                                    
+│       num_decoder_stack: 3                                                    
+│       num_encoder_stack: 3                                                    
 │       hidden_dim: 256                                                         
 │       multiscale: true                                                        
 │       masks: false                                                            
@@ -48,12 +48,12 @@ CONFIG
 │         _target_: models.transformer.build_transformer                        
 │         hidden_dim: 256                                                       
 │         nheads: 8                                                             
-│         num_encoder_layers: 6                                                 
-│         num_decoder_layers: 6                                                 
-│         dim_feedforward: 2048                                                 
+│         num_encoder_layers: 3                                                 
+│         num_decoder_layers: 3                                                 
+│         dim_feedforward: 1024                                                 
 │         dropout: 0.1                                                          
 │         activation: relu                                                      
-│         return_intermediate_dec: false                                        
+│         return_intermediate_dec: true                                         
 │         num_feature_levels: 4                                                 
 │         dec_n_points: 4                                                       
 │         enc_n_points: 4                                                       
@@ -75,6 +75,20 @@ CONFIG
 │         loss_mask: 1                                                          
 │         loss_similarity: 0.001                                                
 │         loss_dice: 1                                                          
+│       tracker:                                                                
+│         _target_: models.tracker.build_tracker                                
+│         score_thresh: 0.7                                                     
+│         filter_score_thresh: 0.6                                              
+│         miss_tolerance: 5                                                     
+│       memory_bank:                                                            
+│         _target_: models.memory_bank.build_memory_bank                        
+│         dim_in: 256                                                           
+│         hidden_dim: 256                                                       
+│         dim_out: 256                                                          
+│         memory_bank_score_thresh: 0                                           
+│         memory_bank_len: 4                                                    
+│         save_period: 3                                                        
+│         memory_bank_with_self_attn: false                                     
 │                                                                               
 ├── callbacks                                                                   
 │   └── model_checkpoint:                                                       
@@ -107,7 +121,6 @@ CONFIG
 │       min_epochs: 1                                                           
 │       max_epochs: 12                                                          
 │       resume_from_checkpoint: null                                            
-│       precision: 16                                                           
 │       gradient_clip_val: 0.1                                                  
 │       fast_dev_run: true                                                      
 │       default_root_dir: /gpfsdswork/projects/rech/way/uex85wx/ECCVYtVOS/checkp
@@ -134,12 +147,12 @@ CONFIG
 └── default_hp                                                                  
     └── num_queries: 300                                                        
         num_classes: 91                                                         
-        num_decoder_stack: 6                                                    
-        num_encoder_stack: 6                                                    
+        num_decoder_stack: 3                                                    
+        num_encoder_stack: 3                                                    
         hidden_dim: 256                                                         
         multiscale: true                                                        
         masks: false                                                            
-        dim_feedforward: 2048                                                   
+        dim_feedforward: 1024                                                   
         nheads: 8                                                               
         dropout: 0.1                                                            
                                                                                 
